@@ -504,6 +504,26 @@ async function applyFilters() {
     }
 }
 
+function goToPageInput() {
+    const input = document.getElementById('goToPageInput');
+    const page = parseInt(input.value);
+    
+    if (isNaN(page) || page < 1 || page > totalPages) {
+        alert(`Please enter a valid page number between 1 and ${totalPages}`);
+        return;
+    }
+    
+    goToPage(page);
+    input.value = ''; // Clear the input after navigation
+}
+
+function scrollToTop() {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
+
 // Update the DOMContentLoaded event listener
 document.addEventListener('DOMContentLoaded', () => {
     // Set default dataset path if empty
@@ -516,6 +536,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pageSize').addEventListener('change', () => {
         currentPage = 1; // Reset to first page when changing page size
         loadDataset();
+    });
+
+    // Add event listener for Enter key in go to page input
+    document.getElementById('goToPageInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            goToPageInput();
+        }
     });
 
     // Add event listener for filters expand/collapse
@@ -540,4 +567,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (applyFiltersBtn) {
         applyFiltersBtn.addEventListener('click', applyFilters);
     }
+
+    // Add scroll event listener for Go to Top button
+    const goToTopBtn = document.getElementById('goToTopBtn');
+    window.addEventListener('scroll', () => {
+        if (window.scrollY > 300) {
+            goToTopBtn.style.display = 'flex';
+        } else {
+            goToTopBtn.style.display = 'none';
+        }
+    });
 }); 

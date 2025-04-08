@@ -54,6 +54,9 @@
                         <div class="mb-3">
                             <label for="pageSize" class="form-label">Rows per Page</label>
                             <select class="form-select" id="pageSize">
+                                <option value="1">1</option>
+                                <option value="3">3</option>
+                                <option value="5" selected>5</option>
                                 <option value="10">10</option>
                                 <option value="25">25</option>
                                 <option value="50">50</option>
@@ -125,6 +128,15 @@
                                     <a class="page-link" href="#" onclick="changePage(1)">Next</a>
                                 </li>
                             </ul>
+                            <div class="d-flex justify-content-center mt-2">
+                                <div class="input-group" style="width: 200px;">
+                                    <input type="number" class="form-control" id="goToPageInput" placeholder="Page number" min="1">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="goToPageInput()">Go</button>
+                                </div>
+                                <button id="goToTopBtn" class="btn btn-outline-secondary ms-2" onclick="scrollToTop()" style="display: none;">
+                                    <i class="bi bi-arrow-up"></i> Top
+                                </button>
+                            </div>
                         </nav>
                     </div>
                 </div>
