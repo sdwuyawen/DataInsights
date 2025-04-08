@@ -61,4 +61,6 @@ The application uses a `.env` file for configuration. You can customize the foll
 
 ## License
 
-MIT 
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+The Apache License 2.0 is a permissive free software license that allows commercial use, modification, distribution, and private use. It requires preservation of the copyright notice and disclaimer, and provides an express grant of patent rights from contributors to users. 
