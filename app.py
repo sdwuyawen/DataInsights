@@ -70,12 +70,33 @@ async def get_dataset(request: Dict[str, Any]):
             filtered_data = []
             for idx, item in enumerate(dataset):
                 include_item = True
+                
+                # Process each filter
                 for column, filter_value in filters.items():
-                    item_value = str(item.get(column, "")).lower()
-                    filter_value = str(filter_value).lower()
-                    if filter_value not in item_value:
-                        include_item = False
-                        break
+                    # Check if it's a regex filter
+                    if column.endswith('_regex'):
+                        actual_column = column[:-6]  # Remove '_regex' suffix
+                        try:
+                            import re
+                            item_value = str(item.get(actual_column, ""))
+                            if not re.search(filter_value, item_value):
+                                include_item = False
+                                break
+                        except re.error:
+                            # If regex is invalid, treat it as a normal text search
+                            item_value = str(item.get(actual_column, "")).lower()
+                            filter_value = filter_value.lower()
+                            if filter_value not in item_value:
+                                include_item = False
+                                break
+                    else:
+                        # Normal text filter
+                        item_value = str(item.get(column, "")).lower()
+                        filter_value = str(filter_value).lower()
+                        if filter_value not in item_value:
+                            include_item = False
+                            break
+                
                 if include_item:
                     # Add the original index to the item
                     item_with_index = dict(item)

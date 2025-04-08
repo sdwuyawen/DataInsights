@@ -28,24 +28,41 @@ function updateStats(totalRows, currentPage, totalPages, pageSize) {
     const totalRowsElement = document.getElementById('totalRows');
     const currentPageElement = document.getElementById('currentPageNum');
     const totalPagesElement = document.getElementById('totalPages');
-    const startRowElement = document.getElementById('startRow');
-    const endRowElement = document.getElementById('endRow');
-    const paginationInfoElement = document.getElementById('paginationInfo');
-
-    const startRow = (currentPage - 1) * pageSize;
-    const endRow = Math.min(startRow + pageSize, totalRows);
-
-    statsElement.style.display = 'block';
-    totalRowsElement.textContent = totalRows;
-    currentPageElement.textContent = currentPage;
-    totalPagesElement.textContent = totalPages;
-    startRowElement.textContent = startRow;
-    endRowElement.textContent = endRow - 1;  // -1 because we're using 0-based indexing
+    const showingRowsElement = document.getElementById('showingRows');
     
-    // Update pagination info
-    if (paginationInfoElement) {
-        paginationInfoElement.textContent = `Page ${currentPage} of ${totalPages}`;
+    if (!statsElement || !currentDataset || !currentDataset.data || currentDataset.data.length === 0) {
+        if (statsElement) {
+            statsElement.style.display = 'none';
+        }
+        return;
     }
+
+    // Get all row numbers from the current data
+    const rowNumbers = currentDataset.data.map(row => row._index);
+    
+    // Check if the row numbers are consecutive
+    const isConsecutive = rowNumbers.every((num, i) => {
+        return i === 0 || num === rowNumbers[i - 1] + 1;
+    });
+    
+    let rowDisplay;
+    if (rowNumbers.length === 1) {
+        // If there's only one row, just show its number
+        rowDisplay = rowNumbers[0].toString();
+    } else if (isConsecutive) {
+        // If consecutive, show range
+        rowDisplay = `${rowNumbers[0]} to ${rowNumbers[rowNumbers.length - 1]}`;
+    } else {
+        // If not consecutive, show discrete numbers
+        rowDisplay = rowNumbers.join(', ');
+    }
+    
+    // Update all elements
+    statsElement.style.display = 'block';
+    if (totalRowsElement) totalRowsElement.textContent = currentDataset.total_rows;
+    if (currentPageElement) currentPageElement.textContent = currentPage;
+    if (totalPagesElement) totalPagesElement.textContent = totalPages;
+    if (showingRowsElement) showingRowsElement.textContent = rowDisplay;
 }
 
 async function loadDataset() {
@@ -101,7 +118,7 @@ async function loadDataset() {
         currentDataset = data;
         totalPages = data.total_pages;
         
-        // Update stats
+        // Update stats with the actual row numbers from the filtered data
         updateStats(data.total_rows, data.current_page, data.total_pages, effectivePageSize);
         
         // Update the table
@@ -120,6 +137,7 @@ function createFilterInputs() {
     const filterInputs = document.getElementById('filterInputs');
     const filtersContainer = document.getElementById('filters');
     const filtersBody = document.getElementById('filtersBody');
+    const regexColumnSelect = document.getElementById('regexColumn');
     filterInputs.innerHTML = '';
     
     if (!columns || columns.length === 0) {
@@ -134,6 +152,15 @@ function createFilterInputs() {
         filtersBody.style.display = 'none';
         document.querySelector('.expand-icon').classList.remove('expanded');
     }
+
+    // Update regex column dropdown
+    regexColumnSelect.innerHTML = '<option value="">Select Column</option>';
+    columns.forEach(column => {
+        const option = document.createElement('option');
+        option.value = column;
+        option.textContent = column;
+        regexColumnSelect.appendChild(option);
+    });
 
     // Create a container for filters
     const filtersDiv = document.createElement('div');
@@ -244,6 +271,14 @@ function getCurrentFilters() {
         return filters;
     }
     
+    // Get regex filter if set
+    const regexColumn = document.getElementById('regexColumn').value;
+    const regexPattern = document.getElementById('regexPattern').value;
+    if (regexColumn && regexPattern) {
+        filters[`${regexColumn}_regex`] = regexPattern;
+    }
+    
+    // Get regular filters
     columns.forEach(column => {
         const select = document.getElementById(`filter-select-${column}`);
         const input = document.getElementById(`filter-${column}`);
@@ -430,10 +465,15 @@ function changePage(delta) {
     return goToPage(currentPage + delta);
 }
 
-// Add this new function to clear all filters
+// Update clearFilters to include regex filter
 function clearFilters() {
     if (!columns) return;
     
+    // Clear regex filter
+    document.getElementById('regexColumn').value = '';
+    document.getElementById('regexPattern').value = '';
+    
+    // Clear regular filters
     columns.forEach(column => {
         const select = document.getElementById(`filter-select-${column}`);
         const input = document.getElementById(`filter-${column}`);
