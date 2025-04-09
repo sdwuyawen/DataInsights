@@ -143,4 +143,51 @@ body {
 
 #goToTopBtn:hover {
     opacity: 0.9;
+}
+
+.dict-display {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin: 5px 0;
+    padding: 5px;
+    background-color: #f8f9fa;
+}
+
+.dict-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #495057;
+}
+
+.dict-content {
+    margin-left: 15px;
+}
+
+.dict-item {
+    margin: 3px 0;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.dict-key {
+    font-weight: bold;
+    color: #495057;
+    margin-right: 5px;
+}
+
+.dict-value {
+    color: #212529;
+}
+
+.array-container {
+    margin-left: 15px;
+    border-left: 2px solid #dee2e6;
+    padding-left: 10px;
+}
+
+.array-item {
+    margin: 3px 0;
+    padding: 2px 5px;
+    background-color: #f8f9fa;
+    border-radius: 3px;
 } 

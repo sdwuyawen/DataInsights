@@ -342,7 +342,41 @@ function updateTable(data, startIndex) {
             const valueDiv = document.createElement('div');
             valueDiv.className = 'data-value';
             
-            if (typeof value === 'string' && (value.includes('\n') || value.includes('def ') || value.includes('import '))) {
+            if (typeof value === 'object' && value !== null) {
+                // Handle dictionary/object values
+                const dictContainer = document.createElement('div');
+                dictContainer.className = 'dict-container';
+                
+                if (Array.isArray(value)) {
+                    // Handle array values
+                    const arrayContainer = document.createElement('div');
+                    arrayContainer.className = 'array-container';
+                    value.forEach((item, index) => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'array-item';
+                        if (typeof item === 'object' && item !== null) {
+                            itemDiv.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                        } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
+                            // Handle code content in array items
+                            const escapedValue = item
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;')
+                                .replace(/'/g, '&#039;');
+                            itemDiv.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
+                        } else {
+                            itemDiv.textContent = JSON.stringify(item);
+                        }
+                        arrayContainer.appendChild(itemDiv);
+                    });
+                    dictContainer.appendChild(arrayContainer);
+                } else {
+                    // Handle dictionary values
+                    dictContainer.appendChild(createDictDisplay(value, key));
+                }
+                valueDiv.appendChild(dictContainer);
+            } else if (typeof value === 'string' && (value.includes('\n') || value.includes('def ') || value.includes('import '))) {
                 // Escape HTML to prevent XSS
                 const escapedValue = value
                     .replace(/&/g, '&amp;')
@@ -366,6 +400,79 @@ function updateTable(data, startIndex) {
     
     // Apply Prism syntax highlighting
     Prism.highlightAll();
+}
+
+// Helper function to create dictionary display
+function createDictDisplay(dict, title) {
+    const container = document.createElement('div');
+    container.className = 'dict-display';
+    
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'dict-title';
+    titleDiv.textContent = title;
+    container.appendChild(titleDiv);
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'dict-content';
+    
+    Object.entries(dict).forEach(([dictKey, dictValue]) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'dict-item';
+        
+        const keySpan = document.createElement('span');
+        keySpan.className = 'dict-key';
+        keySpan.textContent = dictKey + ': ';
+        itemDiv.appendChild(keySpan);
+        
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'dict-value';
+        
+        if (typeof dictValue === 'object' && dictValue !== null) {
+            if (Array.isArray(dictValue)) {
+                const arrayContainer = document.createElement('div');
+                arrayContainer.className = 'array-container';
+                dictValue.forEach((item, index) => {
+                    const arrayItem = document.createElement('div');
+                    arrayItem.className = 'array-item';
+                    if (typeof item === 'object' && item !== null) {
+                        arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                    } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
+                        // Handle code content in array items
+                        const escapedValue = item
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#039;');
+                        arrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
+                    } else {
+                        arrayItem.textContent = JSON.stringify(item);
+                    }
+                    arrayContainer.appendChild(arrayItem);
+                });
+                valueSpan.appendChild(arrayContainer);
+            } else {
+                valueSpan.appendChild(createDictDisplay(dictValue, dictKey));
+            }
+        } else if (typeof dictValue === 'string' && (dictValue.includes('\n') || dictValue.includes('def ') || dictValue.includes('import '))) {
+            // Handle code content in dictionary values
+            const escapedValue = dictValue
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+            valueSpan.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
+        } else {
+            valueSpan.textContent = JSON.stringify(dictValue);
+        }
+        
+        itemDiv.appendChild(valueSpan);
+        contentDiv.appendChild(itemDiv);
+    });
+    
+    container.appendChild(contentDiv);
+    return container;
 }
 
 function updatePagination() {
