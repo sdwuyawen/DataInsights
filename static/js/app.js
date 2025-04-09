@@ -415,17 +415,27 @@ function createDictDisplay(dict, title) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'dict-content';
     
-    // Helper function to check if a string is a serialized object
-    function isSerializedObject(str) {
-        try {
-            const obj = JSON.parse(str);
-            return typeof obj === 'object' && obj !== null;
-        } catch (e) {
-            return false;
-        }
+    // Helper function to check if a value is an object
+    function isObject(value) {
+        return value !== null && typeof value === 'object' && !Array.isArray(value);
     }
     
-    Object.entries(dict).forEach(([dictKey, dictValue]) => {
+    // Helper function to safely get object properties
+    function getObjectProperties(obj) {
+        if (typeof obj === 'string') {
+            try {
+                obj = JSON.parse(obj);
+            } catch (e) {
+                return [];
+            }
+        }
+        return Object.entries(obj);
+    }
+    
+    // Get entries from the dictionary
+    const entries = getObjectProperties(dict);
+    
+    entries.forEach(([dictKey, dictValue]) => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'dict-item';
         
@@ -438,104 +448,70 @@ function createDictDisplay(dict, title) {
         valueSpan.className = 'dict-value';
         
         // Handle string values that might be serialized objects
-        if (typeof dictValue === 'string' && isSerializedObject(dictValue)) {
+        if (typeof dictValue === 'string') {
             try {
-                dictValue = JSON.parse(dictValue);
+                const parsed = JSON.parse(dictValue);
+                if (isObject(parsed) || Array.isArray(parsed)) {
+                    dictValue = parsed;
+                }
             } catch (e) {
-                console.error('Error parsing serialized object:', e);
+                // Not a JSON string, keep as is
             }
         }
         
-        // Check if the value is an Arrow dataset object
-        if (dictValue && typeof dictValue === 'object' && 
-            (dictValue.constructor.name === 'Table' || 
-             dictValue.constructor.name === 'RecordBatch' ||
-             dictValue.constructor.name === 'ChunkedArray')) {
-            // Convert Arrow object to a displayable format
-            try {
-                const arrowData = dictValue.toArray ? dictValue.toArray() : dictValue;
-                if (Array.isArray(arrowData)) {
-                    const arrayContainer = document.createElement('div');
-                    arrayContainer.className = 'array-container';
-                    arrowData.forEach((item, index) => {
-                        const arrayItem = document.createElement('div');
-                        arrayItem.className = 'array-item';
-                        if (typeof item === 'object' && item !== null) {
-                            arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
-                        } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
-                            const escapedValue = item
+        // Handle arrays
+        if (Array.isArray(dictValue)) {
+            const arrayContainer = document.createElement('div');
+            arrayContainer.className = 'array-container';
+            dictValue.forEach((item, index) => {
+                const arrayItem = document.createElement('div');
+                arrayItem.className = 'array-item';
+                
+                if (isObject(item)) {
+                    arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                } else if (Array.isArray(item)) {
+                    const nestedArrayContainer = document.createElement('div');
+                    nestedArrayContainer.className = 'array-container';
+                    item.forEach((nestedItem, nestedIndex) => {
+                        const nestedArrayItem = document.createElement('div');
+                        nestedArrayItem.className = 'array-item';
+                        if (isObject(nestedItem)) {
+                            nestedArrayItem.appendChild(createDictDisplay(nestedItem, `Item ${nestedIndex + 1}`));
+                        } else if (typeof nestedItem === 'string' && (nestedItem.includes('\n') || nestedItem.includes('def ') || nestedItem.includes('import '))) {
+                            const escapedValue = nestedItem
                                 .replace(/&/g, '&amp;')
                                 .replace(/</g, '&lt;')
                                 .replace(/>/g, '&gt;')
                                 .replace(/"/g, '&quot;')
                                 .replace(/'/g, '&#039;');
-                            arrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
+                            nestedArrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
                         } else {
-                            arrayItem.textContent = JSON.stringify(item);
+                            nestedArrayItem.textContent = JSON.stringify(nestedItem);
                         }
-                        arrayContainer.appendChild(arrayItem);
+                        nestedArrayContainer.appendChild(nestedArrayItem);
                     });
-                    valueSpan.appendChild(arrayContainer);
+                    arrayItem.appendChild(nestedArrayContainer);
+                } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
+                    const escapedValue = item
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                    arrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
                 } else {
-                    valueSpan.appendChild(createDictDisplay(arrowData, dictKey));
+                    arrayItem.textContent = JSON.stringify(item);
                 }
-            } catch (error) {
-                console.error('Error converting Arrow object:', error);
-                valueSpan.textContent = '[Arrow Data]';
-            }
-        } else if (typeof dictValue === 'object' && dictValue !== null) {
-            if (Array.isArray(dictValue)) {
-                const arrayContainer = document.createElement('div');
-                arrayContainer.className = 'array-container';
-                dictValue.forEach((item, index) => {
-                    const arrayItem = document.createElement('div');
-                    arrayItem.className = 'array-item';
-                    if (typeof item === 'object' && item !== null) {
-                        // Handle nested dictionaries in arrays
-                        if (Array.isArray(item)) {
-                            // If the item is an array, create a nested array container
-                            const nestedArrayContainer = document.createElement('div');
-                            nestedArrayContainer.className = 'array-container';
-                            item.forEach((nestedItem, nestedIndex) => {
-                                const nestedArrayItem = document.createElement('div');
-                                nestedArrayItem.className = 'array-item';
-                                if (typeof nestedItem === 'object' && nestedItem !== null) {
-                                    nestedArrayItem.appendChild(createDictDisplay(nestedItem, `Item ${nestedIndex + 1}`));
-                                } else if (typeof nestedItem === 'string' && (nestedItem.includes('\n') || nestedItem.includes('def ') || nestedItem.includes('import '))) {
-                                    const escapedValue = nestedItem
-                                        .replace(/&/g, '&amp;')
-                                        .replace(/</g, '&lt;')
-                                        .replace(/>/g, '&gt;')
-                                        .replace(/"/g, '&quot;')
-                                        .replace(/'/g, '&#039;');
-                                    nestedArrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
-                                } else {
-                                    nestedArrayItem.textContent = JSON.stringify(nestedItem);
-                                }
-                                nestedArrayContainer.appendChild(nestedArrayItem);
-                            });
-                            arrayItem.appendChild(nestedArrayContainer);
-                        } else {
-                            arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
-                        }
-                    } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
-                        const escapedValue = item
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;')
-                            .replace(/"/g, '&quot;')
-                            .replace(/'/g, '&#039;');
-                        arrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
-                    } else {
-                        arrayItem.textContent = JSON.stringify(item);
-                    }
-                    arrayContainer.appendChild(arrayItem);
-                });
-                valueSpan.appendChild(arrayContainer);
-            } else {
-                valueSpan.appendChild(createDictDisplay(dictValue, dictKey));
-            }
-        } else if (typeof dictValue === 'string' && (dictValue.includes('\n') || dictValue.includes('def ') || dictValue.includes('import '))) {
+                arrayContainer.appendChild(arrayItem);
+            });
+            valueSpan.appendChild(arrayContainer);
+        }
+        // Handle objects
+        else if (isObject(dictValue)) {
+            valueSpan.appendChild(createDictDisplay(dictValue, dictKey));
+        }
+        // Handle code blocks
+        else if (typeof dictValue === 'string' && (dictValue.includes('\n') || dictValue.includes('def ') || dictValue.includes('import '))) {
             const escapedValue = dictValue
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
@@ -543,7 +519,9 @@ function createDictDisplay(dict, title) {
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
             valueSpan.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
-        } else {
+        }
+        // Handle other values
+        else {
             valueSpan.textContent = JSON.stringify(dictValue);
         }
         
