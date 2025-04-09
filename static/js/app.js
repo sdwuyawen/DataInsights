@@ -415,6 +415,16 @@ function createDictDisplay(dict, title) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'dict-content';
     
+    // Helper function to check if a string is a serialized object
+    function isSerializedObject(str) {
+        try {
+            const obj = JSON.parse(str);
+            return typeof obj === 'object' && obj !== null;
+        } catch (e) {
+            return false;
+        }
+    }
+    
     Object.entries(dict).forEach(([dictKey, dictValue]) => {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'dict-item';
@@ -426,6 +436,15 @@ function createDictDisplay(dict, title) {
         
         const valueSpan = document.createElement('span');
         valueSpan.className = 'dict-value';
+        
+        // Handle string values that might be serialized objects
+        if (typeof dictValue === 'string' && isSerializedObject(dictValue)) {
+            try {
+                dictValue = JSON.parse(dictValue);
+            } catch (e) {
+                console.error('Error parsing serialized object:', e);
+            }
+        }
         
         // Check if the value is an Arrow dataset object
         if (dictValue && typeof dictValue === 'object' && 
