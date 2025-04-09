@@ -2,6 +2,16 @@ let currentPage = 1;
 let totalPages = 1;
 let currentDataset = null;
 let columns = [];
+let isLinuxPlatform = false;
+
+// Detect platform once at load time
+function detectPlatform() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    isLinuxPlatform = userAgent.indexOf('linux') > -1;
+}
+
+// Call platform detection on script load
+detectPlatform();
 
 function parseDatasetPath(path) {
     // Handle full URLs like https://huggingface.co/datasets/openai/openai_humaneval
@@ -355,7 +365,12 @@ function updateTable(data, startIndex) {
                         const itemDiv = document.createElement('div');
                         itemDiv.className = 'array-item';
                         if (item && typeof item === 'object') {
-                            itemDiv.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                            // For Linux compatibility, use JSON stringify for the entire object instead of recursive display
+                            if (isLinuxPlatform) {
+                                itemDiv.textContent = JSON.stringify(item, null, 2);
+                            } else {
+                                itemDiv.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                            }
                         } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
                             const escapedValue = item
                                 .replace(/&/g, '&amp;')
@@ -371,8 +386,15 @@ function updateTable(data, startIndex) {
                     });
                     dictContainer.appendChild(arrayContainer);
                 } else {
-                    // Handle dictionary values
-                    dictContainer.appendChild(createDictDisplay(value, key));
+                    // Handle dictionary values - use JSON.stringify for Linux
+                    if (isLinuxPlatform) {
+                        const preElement = document.createElement('pre');
+                        preElement.className = 'json-display';
+                        preElement.textContent = JSON.stringify(value, null, 2);
+                        dictContainer.appendChild(preElement);
+                    } else {
+                        dictContainer.appendChild(createDictDisplay(value, key));
+                    }
                 }
                 valueDiv.appendChild(dictContainer);
             } else if (typeof value === 'string' && (value.includes('\n') || value.includes('def ') || value.includes('import '))) {
@@ -384,7 +406,7 @@ function updateTable(data, startIndex) {
                     .replace(/'/g, '&#039;');
                 valueDiv.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
             } else {
-                valueDiv.textContent = value;
+                valueDiv.textContent = typeof value === 'object' ? JSON.stringify(value) : value;
             }
             
             rowDiv.appendChild(valueDiv);
@@ -436,7 +458,12 @@ function createDictDisplay(dict, title) {
                     const arrayItem = document.createElement('div');
                     arrayItem.className = 'array-item';
                     if (item && typeof item === 'object') {
-                        arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                        // For Linux compatibility, use JSON stringify for the entire object instead of recursive display
+                        if (isLinuxPlatform) {
+                            arrayItem.textContent = JSON.stringify(item, null, 2);
+                        } else {
+                            arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                        }
                     } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
                         const escapedValue = item
                             .replace(/&/g, '&amp;')
@@ -452,7 +479,15 @@ function createDictDisplay(dict, title) {
                 });
                 valueSpan.appendChild(arrayContainer);
             } else {
-                valueSpan.appendChild(createDictDisplay(dictValue, dictKey));
+                // For Linux compatibility, use JSON stringify for nested objects
+                if (isLinuxPlatform) {
+                    const preElement = document.createElement('pre');
+                    preElement.className = 'json-display';
+                    preElement.textContent = JSON.stringify(dictValue, null, 2);
+                    valueSpan.appendChild(preElement);
+                } else {
+                    valueSpan.appendChild(createDictDisplay(dictValue, dictKey));
+                }
             }
         } else if (typeof dictValue === 'string' && (dictValue.includes('\n') || dictValue.includes('def ') || dictValue.includes('import '))) {
             const escapedValue = dictValue

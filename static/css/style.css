@@ -190,4 +190,18 @@ body {
     padding: 2px 5px;
     background-color: #f8f9fa;
     border-radius: 3px;
+}
+
+/* Style for JSON display on Linux */
+.json-display {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 5px 0;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    color: #333;
+    overflow-x: auto;
+    border: 1px solid #ddd;
 } 
