@@ -355,9 +355,10 @@ function updateTable(data, startIndex) {
                         const itemDiv = document.createElement('div');
                         itemDiv.className = 'array-item';
                         if (typeof item === 'object' && item !== null) {
-                            itemDiv.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                            // Ensure the item is properly formatted before passing to createDictDisplay
+                            const formattedItem = typeof item === 'string' ? JSON.parse(item) : item;
+                            itemDiv.appendChild(createDictDisplay(formattedItem, `Item ${index + 1}`));
                         } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
-                            // Handle code content in array items
                             const escapedValue = item
                                 .replace(/&/g, '&amp;')
                                 .replace(/</g, '&lt;')
@@ -373,11 +374,11 @@ function updateTable(data, startIndex) {
                     dictContainer.appendChild(arrayContainer);
                 } else {
                     // Handle dictionary values
-                    dictContainer.appendChild(createDictDisplay(value, key));
+                    const formattedValue = typeof value === 'string' ? JSON.parse(value) : value;
+                    dictContainer.appendChild(createDictDisplay(formattedValue, key));
                 }
                 valueDiv.appendChild(dictContainer);
             } else if (typeof value === 'string' && (value.includes('\n') || value.includes('def ') || value.includes('import '))) {
-                // Escape HTML to prevent XSS
                 const escapedValue = value
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
