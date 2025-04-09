@@ -472,7 +472,33 @@ function createDictDisplay(dict, title) {
                     const arrayItem = document.createElement('div');
                     arrayItem.className = 'array-item';
                     if (typeof item === 'object' && item !== null) {
-                        arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                        // Handle nested dictionaries in arrays
+                        if (Array.isArray(item)) {
+                            // If the item is an array, create a nested array container
+                            const nestedArrayContainer = document.createElement('div');
+                            nestedArrayContainer.className = 'array-container';
+                            item.forEach((nestedItem, nestedIndex) => {
+                                const nestedArrayItem = document.createElement('div');
+                                nestedArrayItem.className = 'array-item';
+                                if (typeof nestedItem === 'object' && nestedItem !== null) {
+                                    nestedArrayItem.appendChild(createDictDisplay(nestedItem, `Item ${nestedIndex + 1}`));
+                                } else if (typeof nestedItem === 'string' && (nestedItem.includes('\n') || nestedItem.includes('def ') || nestedItem.includes('import '))) {
+                                    const escapedValue = nestedItem
+                                        .replace(/&/g, '&amp;')
+                                        .replace(/</g, '&lt;')
+                                        .replace(/>/g, '&gt;')
+                                        .replace(/"/g, '&quot;')
+                                        .replace(/'/g, '&#039;');
+                                    nestedArrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
+                                } else {
+                                    nestedArrayItem.textContent = JSON.stringify(nestedItem);
+                                }
+                                nestedArrayContainer.appendChild(nestedArrayItem);
+                            });
+                            arrayItem.appendChild(nestedArrayContainer);
+                        } else {
+                            arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                        }
                     } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
                         const escapedValue = item
                             .replace(/&/g, '&amp;')
