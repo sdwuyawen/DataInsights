@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import json
+import re
 
 # Load environment variables
 load_dotenv()
@@ -44,94 +45,94 @@ async def read_root():
     return FileResponse("static/index.html")
 
 @app.post("/api/dataset")
-async def get_dataset(request: Dict[str, Any]):
+async def load_dataset(request: Request):
+    data = await request.json()
+    dataset_path = data.get("dataset_path")
+    is_local = data.get("is_local", False)
+    page = data.get("page", 1)
+    page_size = data.get("page_size", 10)
+    filters = data.get("filters", {})
+
     try:
-        dataset_path = request.get("dataset_path")
-        is_local = request.get("is_local", False)
-        page = request.get("page", 1)
-        page_size = request.get("page_size", 10)
-        filters = request.get("filters", {})
-        
-        # Load the dataset
         if is_local:
+            # Check if the path exists
+            if not os.path.exists(dataset_path):
+                raise HTTPException(status_code=404, detail=f"Dataset path not found: {dataset_path}")
+            
+            # Check if it's a JSON file
             if dataset_path.lower().endswith('.jsonl') or dataset_path.lower().endswith('.json'):
-                dataset = datasets.load_dataset('json', data_files=dataset_path)
+                dataset = datasets.load_dataset("json", data_files=dataset_path)
             else:
-                dataset = datasets.load_from_disk(dataset_path)
+                # Check if it's an Arrow dataset directory
+                if os.path.isdir(dataset_path) and os.path.exists(os.path.join(dataset_path, "dataset_info.json")):
+                    dataset = datasets.load_from_disk(dataset_path)
+                else:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="Invalid dataset format. Please provide either a JSON/JSONL file or a valid Arrow dataset directory."
+                    )
         else:
+            # Load from Hugging Face
             dataset = datasets.load_dataset(dataset_path)
-        
-        # Get the first split if multiple splits exist
+
+        # Handle DatasetDict by selecting the first split if it's a DatasetDict
         if isinstance(dataset, datasets.DatasetDict):
-            dataset = list(dataset.values())[0]
-        
+            # Get the first available split (usually 'train')
+            split_name = next(iter(dataset.keys()))
+            dataset = dataset[split_name]
+
         # Apply filters
         if filters:
             filtered_data = []
-            for idx, item in enumerate(dataset):
-                include_item = True
-                
-                # Process each filter
-                for column, filter_value in filters.items():
-                    # Check if it's a regex filter
-                    if column.endswith('_regex'):
-                        actual_column = column[:-6]  # Remove '_regex' suffix
-                        try:
-                            import re
-                            item_value = str(item.get(actual_column, ""))
-                            if not re.search(filter_value, item_value):
-                                include_item = False
-                                break
-                        except re.error:
-                            # If regex is invalid, treat it as a normal text search
-                            item_value = str(item.get(actual_column, "")).lower()
-                            filter_value = filter_value.lower()
-                            if filter_value not in item_value:
-                                include_item = False
+            for item in dataset:
+                match = True
+                for key, value in filters.items():
+                    if key.endswith('_regex'):
+                        # Handle regex filter
+                        column = key[:-5]  # Remove '_regex' suffix
+                        if column in item:
+                            try:
+                                if not re.search(value, str(item[column])):
+                                    match = False
+                                    break
+                            except re.error:
+                                match = False
                                 break
                     else:
-                        # Normal text filter
-                        item_value = str(item.get(column, "")).lower()
-                        filter_value = str(filter_value).lower()
-                        if filter_value not in item_value:
-                            include_item = False
+                        # Handle exact match filter
+                        if key in item and str(item[key]) != str(value):
+                            match = False
                             break
-                
-                if include_item:
-                    # Add the original index to the item
-                    item_with_index = dict(item)
-                    item_with_index['_index'] = idx
-                    filtered_data.append(item_with_index)
-            total_rows = len(filtered_data)
+                if match:
+                    filtered_data.append(item)
+            dataset = filtered_data
         else:
-            filtered_data = dataset
-            total_rows = len(dataset)
-        
+            dataset = list(dataset)
+
         # Calculate pagination
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        
-        # Get the data for the current page
-        if filters:
-            page_data = filtered_data[start_idx:end_idx]
-        else:
-            # For unfiltered data, add indices to the items
-            page_data = []
-            for i in range(start_idx, min(end_idx, total_rows)):
-                item = dict(dataset[i])
-                item['_index'] = i
-                page_data.append(item)
-        
+        total_rows = len(dataset)
         total_pages = (total_rows + page_size - 1) // page_size
-        
+        start_idx = (page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_rows)
+
+        # Get the page of data
+        page_data = dataset[start_idx:end_idx]
+
+        # Add row numbers to the data
+        for i, item in enumerate(page_data):
+            item['_index'] = start_idx + i
+
         return {
             "data": page_data,
             "total_rows": total_rows,
             "total_pages": total_pages,
             "current_page": page
         }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dataset/columns")
 async def get_dataset_columns(dataset_path: str, is_local: bool = False):
@@ -142,32 +143,26 @@ async def get_dataset_columns(dataset_path: str, is_local: bool = False):
             # Check if it's a JSONL file
             if dataset_path.lower().endswith('.jsonl') or dataset_path.lower().endswith('.json'):
                 dataset = datasets.load_dataset('json', data_files=dataset_path)
-                if isinstance(dataset, datasets.DatasetDict):
-                    dataset = list(dataset.values())[0]
             else:
                 dataset = datasets.load_from_disk(dataset_path)
         else:
-            try:
-                # Try loading with default split first
-                dataset = datasets.load_dataset(dataset_path, split="train", cache_dir=cache_dir)
-            except Exception as e:
-                try:
-                    # If that fails, try loading without specifying a split
-                    dataset = datasets.load_dataset(dataset_path, cache_dir=cache_dir)
-                    # If the dataset has a 'test' split (like OpenAI HumanEval), use that
-                    if 'test' in dataset:
-                        dataset = dataset['test']
-                    # Otherwise use the first available split
-                    else:
-                        splits = list(dataset.keys())
-                        if splits:
-                            dataset = dataset[splits[0]]
-                        else:
-                            raise HTTPException(status_code=400, detail="No valid splits found in dataset")
-                except Exception as e2:
-                    raise HTTPException(status_code=500, detail=f"Failed to load dataset: {str(e2)}")
-        
-        return {"columns": list(dataset.features.keys())}
+            dataset = datasets.load_dataset(dataset_path)
+
+        # Handle DatasetDict by selecting the first split if it's a DatasetDict
+        if isinstance(dataset, datasets.DatasetDict):
+            # Get the first available split (usually 'train')
+            split_name = next(iter(dataset.keys()))
+            dataset = dataset[split_name]
+
+        # Get columns from the dataset
+        if hasattr(dataset, 'features'):
+            columns = list(dataset.features.keys())
+        else:
+            # If features attribute doesn't exist, get columns from the first item
+            first_item = next(iter(dataset), {})
+            columns = list(first_item.keys()) if first_item else []
+
+        return {"columns": columns}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

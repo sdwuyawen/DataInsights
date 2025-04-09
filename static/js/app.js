@@ -427,7 +427,44 @@ function createDictDisplay(dict, title) {
         const valueSpan = document.createElement('span');
         valueSpan.className = 'dict-value';
         
-        if (typeof dictValue === 'object' && dictValue !== null) {
+        // Check if the value is an Arrow dataset object
+        if (dictValue && typeof dictValue === 'object' && 
+            (dictValue.constructor.name === 'Table' || 
+             dictValue.constructor.name === 'RecordBatch' ||
+             dictValue.constructor.name === 'ChunkedArray')) {
+            // Convert Arrow object to a displayable format
+            try {
+                const arrowData = dictValue.toArray ? dictValue.toArray() : dictValue;
+                if (Array.isArray(arrowData)) {
+                    const arrayContainer = document.createElement('div');
+                    arrayContainer.className = 'array-container';
+                    arrowData.forEach((item, index) => {
+                        const arrayItem = document.createElement('div');
+                        arrayItem.className = 'array-item';
+                        if (typeof item === 'object' && item !== null) {
+                            arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
+                        } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
+                            const escapedValue = item
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;')
+                                .replace(/"/g, '&quot;')
+                                .replace(/'/g, '&#039;');
+                            arrayItem.innerHTML = `<pre class="code-block"><code class="language-python">${escapedValue}</code></pre>`;
+                        } else {
+                            arrayItem.textContent = JSON.stringify(item);
+                        }
+                        arrayContainer.appendChild(arrayItem);
+                    });
+                    valueSpan.appendChild(arrayContainer);
+                } else {
+                    valueSpan.appendChild(createDictDisplay(arrowData, dictKey));
+                }
+            } catch (error) {
+                console.error('Error converting Arrow object:', error);
+                valueSpan.textContent = '[Arrow Data]';
+            }
+        } else if (typeof dictValue === 'object' && dictValue !== null) {
             if (Array.isArray(dictValue)) {
                 const arrayContainer = document.createElement('div');
                 arrayContainer.className = 'array-container';
@@ -437,7 +474,6 @@ function createDictDisplay(dict, title) {
                     if (typeof item === 'object' && item !== null) {
                         arrayItem.appendChild(createDictDisplay(item, `Item ${index + 1}`));
                     } else if (typeof item === 'string' && (item.includes('\n') || item.includes('def ') || item.includes('import '))) {
-                        // Handle code content in array items
                         const escapedValue = item
                             .replace(/&/g, '&amp;')
                             .replace(/</g, '&lt;')
@@ -455,7 +491,6 @@ function createDictDisplay(dict, title) {
                 valueSpan.appendChild(createDictDisplay(dictValue, dictKey));
             }
         } else if (typeof dictValue === 'string' && (dictValue.includes('\n') || dictValue.includes('def ') || dictValue.includes('import '))) {
-            // Handle code content in dictionary values
             const escapedValue = dictValue
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
