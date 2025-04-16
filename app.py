@@ -11,7 +11,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 import json
 import re
-
+import argparse
+import uvicorn
 # Load environment variables
 load_dotenv()
 
@@ -30,8 +31,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Custom StaticFiles class to prevent caching from the browser
+# avoid browser caching of static files. When you update your frontend code but run the server on the same port, 
+# your browser is likely using cached versions of your JavaScript and HTML files instead of loading the newest versions from the server.
+# This makes the change not visible until you change the port.
+# The reason changing the port works is because the browser treats it as a completely different site, so it doesn't use the cached assets.
+class NoCache(StaticFiles):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    async def __call__(self, scope, receive, send):
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = message.get("headers", [])
+                headers.append((b"Cache-Control", b"no-store, max-age=0"))
+                message["headers"] = headers
+            await send(message)
+        
+        await super().__call__(scope, receive, send_wrapper)
+
+# Mount static files with no-cache policy
+app.mount("/static", NoCache(directory="static"), name="static")
+
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class DatasetRequest(BaseModel):
     dataset_path: str
@@ -225,5 +247,8 @@ async def get_unique_values(dataset_path: str, column: str, is_local: bool = Fal
         raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001) 
+    args = argparse.ArgumentParser()
+    args.add_argument("--port", type=int, default=8000)
+    args = args.parse_args()
+
+    uvicorn.run(app, host="0.0.0.0", port=args.port) 
