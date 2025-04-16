@@ -39,6 +39,7 @@ class DatasetRequest(BaseModel):
     page: int = 1
     page_size: int = 10
     filters: Optional[Dict[str, Any]] = None
+    config: Optional[str] = None
 
 @app.get("/")
 async def read_root():
@@ -52,6 +53,13 @@ async def load_dataset(request: Request):
     page = data.get("page", 1)
     page_size = data.get("page_size", 10)
     filters = data.get("filters", {})
+    config = data.get("config", None)
+    
+    # Convert empty string to None
+    if config == "":
+        config = None
+    
+    print(f"Loading dataset with config: {config!r}")
 
     try:
         if is_local:
@@ -73,7 +81,12 @@ async def load_dataset(request: Request):
                     )
         else:
             # Load from Hugging Face
-            dataset = datasets.load_dataset(dataset_path)
+            if config:
+                print(f"Using config: {config} for dataset_path: {dataset_path}")
+                dataset = datasets.load_dataset(dataset_path, config)
+            else:
+                print(f"Loading dataset without config: {dataset_path}")
+                dataset = datasets.load_dataset(dataset_path)
 
         # Handle DatasetDict by selecting the first split if it's a DatasetDict
         if isinstance(dataset, datasets.DatasetDict):
@@ -135,7 +148,12 @@ async def load_dataset(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dataset/columns")
-async def get_dataset_columns(dataset_path: str, is_local: bool = False):
+async def get_dataset_columns(dataset_path: str, is_local: bool = False, config: Optional[str] = None):
+    # Convert empty string to None
+    if config == "":
+        config = None
+    
+    print(f"Getting columns with config: {config!r}")
     try:
         if is_local:
             if not os.path.exists(dataset_path):
@@ -146,7 +164,10 @@ async def get_dataset_columns(dataset_path: str, is_local: bool = False):
             else:
                 dataset = datasets.load_from_disk(dataset_path)
         else:
-            dataset = datasets.load_dataset(dataset_path)
+            if config:
+                dataset = datasets.load_dataset(dataset_path, config)
+            else:
+                dataset = datasets.load_dataset(dataset_path)
 
         # Handle DatasetDict by selecting the first split if it's a DatasetDict
         if isinstance(dataset, datasets.DatasetDict):
@@ -167,7 +188,12 @@ async def get_dataset_columns(dataset_path: str, is_local: bool = False):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dataset/unique-values")
-async def get_unique_values(dataset_path: str, column: str, is_local: bool = False):
+async def get_unique_values(dataset_path: str, column: str, is_local: bool = False, config: Optional[str] = None):
+    # Convert empty string to None
+    if config == "":
+        config = None
+    
+    print(f"Getting unique values for column {column} with config: {config!r}")
     try:
         # Load the dataset
         if is_local:
@@ -176,7 +202,10 @@ async def get_unique_values(dataset_path: str, column: str, is_local: bool = Fal
             else:
                 dataset = datasets.load_from_disk(dataset_path)
         else:
-            dataset = datasets.load_dataset(dataset_path)
+            if config:
+                dataset = datasets.load_dataset(dataset_path, config)
+            else:
+                dataset = datasets.load_dataset(dataset_path)
         
         # Get the first split if multiple splits exist
         if isinstance(dataset, datasets.DatasetDict):
@@ -197,4 +226,4 @@ async def get_unique_values(dataset_path: str, column: str, is_local: bool = Fal
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8001) 

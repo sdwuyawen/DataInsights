@@ -82,13 +82,27 @@ async function loadDataset() {
     const pageSize = document.getElementById('pageSize').value;
     const effectivePageSize = pageSize === 'all' ? 1000000 : parseInt(pageSize);
     const currentFilters = getCurrentFilters();
+    const datasetConfig = document.getElementById('datasetConfig').value.trim();
+    
+    console.log('Dataset config:', datasetConfig); // Debug log
     
     try {
         showLoading(true);
         
         // First, get the columns if we don't have them yet
         if (!columns || columns.length === 0) {
-            const columnsResponse = await fetch(`/api/dataset/columns?dataset_path=${encodeURIComponent(datasetPath)}&is_local=${isLocal}`);
+            // Build URL with explicit query params to ensure they're properly formatted
+            const params = new URLSearchParams();
+            params.append('dataset_path', datasetPath);
+            params.append('is_local', isLocal);
+            if (datasetConfig) {
+                params.append('config', datasetConfig);
+            }
+            
+            const columnsUrl = `/api/dataset/columns?${params.toString()}`;
+            console.log('Columns URL:', columnsUrl); // Debug log
+            
+            const columnsResponse = await fetch(columnsUrl);
             if (!columnsResponse.ok) {
                 const error = await columnsResponse.json();
                 throw new Error(error.detail || 'Failed to load dataset columns');
@@ -101,20 +115,30 @@ async function loadDataset() {
         }
         
         console.log('Sending request with filters:', currentFilters); // Debug log
+        console.log('Sending request with config:', datasetConfig); // Debug log
         
         // Load the dataset with filters
+        const requestBody = {
+            dataset_path: datasetPath,
+            is_local: isLocal,
+            page: currentPage,
+            page_size: effectivePageSize,
+            filters: currentFilters
+        };
+        
+        // Only add config if it's not empty
+        if (datasetConfig) {
+            requestBody.config = datasetConfig;
+        }
+        
+        console.log('Request body:', JSON.stringify(requestBody)); // Debug log
+        
         const response = await fetch('/api/dataset', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                dataset_path: datasetPath,
-                is_local: isLocal,
-                page: currentPage,
-                page_size: effectivePageSize,
-                filters: currentFilters
-            })
+            body: JSON.stringify(requestBody)
         });
         
         if (!response.ok) {
@@ -240,9 +264,21 @@ async function updateFilterOptions(column, select) {
         const rawPath = document.getElementById('datasetPath').value;
         const datasetPath = parseDatasetPath(rawPath);
         const isLocal = document.querySelector('input[name="datasetSource"]:checked').value === 'local';
+        const datasetConfig = document.getElementById('datasetConfig').value.trim();
 
-        // Fetch unique values from backend
-        const response = await fetch(`/api/dataset/unique-values?dataset_path=${encodeURIComponent(datasetPath)}&column=${encodeURIComponent(column)}&is_local=${isLocal}`);
+        // Build URL with explicit query params to ensure they're properly formatted
+        const params = new URLSearchParams();
+        params.append('dataset_path', datasetPath);
+        params.append('column', column);
+        params.append('is_local', isLocal);
+        if (datasetConfig) {
+            params.append('config', datasetConfig);
+        }
+        
+        const uniqueValuesUrl = `/api/dataset/unique-values?${params.toString()}`;
+        console.log('Unique values URL:', uniqueValuesUrl); // Debug log
+        
+        const response = await fetch(uniqueValuesUrl);
         
         if (!response.ok) {
             throw new Error('Failed to fetch unique values');
